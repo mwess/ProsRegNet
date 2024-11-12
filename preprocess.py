@@ -51,6 +51,96 @@ def transformAndSaveRegion(preprocess_moving_dest, case, slice, s, region, theta
     cv2.imwrite(outputPath, rotated)
 
 
+def preprocess_hist2(img, mask):
+    
+    img = img * mask
+    theta = 0
+    img = np.pad(img,((img.shape[0],img.shape[0]),(img.shape[1],img.shape[1]),(0,0)),'constant', constant_values=0)
+    mask = np.pad(mask,((mask.shape[0], mask.shape[0]), (mask.shape[1], mask.shape[1]),(0,0)),'constant', constant_values=0)
+
+    rows, cols = img.shape[:2]
+    M = cv2.getRotationMatrix2D((cols/2,rows/2),theta,1)
+    rotated_hist = cv2.warpAffine(img,M,(cols,rows),borderValue = (0,0,0) )
+    rotated_mask = cv2.warpAffine(mask,M,(cols,rows))
+    
+    dH = int(rotated_hist.shape[1]/4)
+    dW = int(rotated_hist.shape[0]/4)
+        
+    rotated_hist = cv2.resize(rotated_hist, (dH, dW), interpolation=cv2.INTER_CUBIC)
+    rotated_mask = cv2.resize(rotated_mask, (dH, dW), interpolation=cv2.INTER_CUBIC)
+    
+
+    # create a bounding box around slice
+    # points = np.argwhere(rotated_mask[:,:,0] != 0)
+    points = np.argwhere(rotated_mask != 0)
+    points = np.fliplr(points) # store them in x,y coordinates instead of row,col indices
+    y, x, h, w = cv2.boundingRect(points) # create a rectangle around those points
+    
+    crop = rotated_hist[x:x+w, y:y+h,:]
+    
+    if h>w:
+        y_offset = int(h*0.15)
+        x_offset = int((h - w + 2*y_offset)/2)
+    else:
+        y_offset = int(h*0.2)
+        x_offset = int((h - w + 2*y_offset)/2)
+    
+    # pad image
+    h = h + 2*y_offset
+    w = w + 2*x_offset
+      
+    padHist = np.zeros((w, h, 3)) 
+    
+    padHist[x_offset:crop.shape[0]+x_offset, y_offset:crop.shape[1]+y_offset, :] = crop
+
+    return padHist
+
+
+def preprocess_hist2(img, mask):
+    
+    img = img * mask
+    theta = 0
+    img = np.pad(img,((img.shape[0],img.shape[0]),(img.shape[1],img.shape[1]),(0,0)),'constant', constant_values=0)
+    mask = np.pad(mask,((mask.shape[0], mask.shape[0]), (mask.shape[1], mask.shape[1]),(0,0)),'constant', constant_values=0)
+
+    rows, cols = img.shape[:2]
+    M = cv2.getRotationMatrix2D((cols/2,rows/2),theta,1)
+    rotated_hist = cv2.warpAffine(img,M,(cols,rows),borderValue = (0,0,0) )
+    rotated_mask = cv2.warpAffine(mask,M,(cols,rows))
+    
+    dH = int(rotated_hist.shape[1]/4)
+    dW = int(rotated_hist.shape[0]/4)
+        
+    rotated_hist = cv2.resize(rotated_hist, (dH, dW), interpolation=cv2.INTER_CUBIC)
+    rotated_mask = cv2.resize(rotated_mask, (dH, dW), interpolation=cv2.INTER_CUBIC)
+    
+
+    # create a bounding box around slice
+    # points = np.argwhere(rotated_mask[:,:,0] != 0)
+    points = np.argwhere(rotated_mask != 0)
+    points = np.fliplr(points) # store them in x,y coordinates instead of row,col indices
+    y, x, h, w = cv2.boundingRect(points) # create a rectangle around those points
+    
+    crop = rotated_hist[x:x+w, y:y+h,:]
+    
+    if h>w:
+        y_offset = int(h*0.15)
+        x_offset = int((h - w + 2*y_offset)/2)
+    else:
+        y_offset = int(h*0.2)
+        x_offset = int((h - w + 2*y_offset)/2)
+    
+    # pad image
+    h = h + 2*y_offset
+    w = w + 2*x_offset
+      
+    padHist = np.zeros((w, h, 3)) 
+    
+    padHist[x_offset:crop.shape[0]+x_offset, y_offset:crop.shape[1]+y_offset, :] = crop
+
+    return padHist
+
+
 # preprocess_hist into hist slices here
 def preprocess_hist(moving_dict, pre_process_moving_dest, case): 
     for slice in moving_dict:
@@ -134,6 +224,84 @@ def preprocess_hist(moving_dict, pre_process_moving_dest, case):
 
         # Write images, with new filename
         cv2.imwrite(pre_process_moving_dest + case + '\\hist_' + case + '_' + slice +'.png', padHist)
+
+        
+def preprocess_mri2(imMRI, imMriMask):
+    imMRI = sitk.GetArrayFromImage(imMRI)
+    if imMRI.shape[1]!=sitk.GetArrayFromImage(imMriMask).shape[1] | imMRI.shape[2]!=sitk.GetArrayFromImage(imMriMask).shape[2]:
+        # mri_ori = sitk.ReadImage(fixed_img_mha)
+        resampler = sitk.ResampleImageFilter()
+        resampler.SetReferenceImage(imMRI)
+        imMriMask = resampler.Execute(imMriMask)
+        print("input mri and mri mask have different sizes")
+    
+    imMriMask = sitk.GetArrayFromImage(imMriMask)
+    
+    coord = {}
+    coord['x_offset'] = []
+    coord['y_offset'] = []
+    coord['x'] = []
+    coord['y'] = []
+    coord['h'] = []
+    coord['w'] = []
+    coord['slice']  = []
+    
+    preprocessed_mri_slices = []
+    preprocessed_mri_masks = []
+
+    for slice in range(imMRI.shape[0]):
+        if np.sum(np.ndarray.flatten(imMriMask[slice, :, :])) == 0: 
+            continue
+        
+        mri = imMRI[slice, :, :]*imMriMask[slice, :, :]
+        
+        mri_mask = imMriMask[slice, :, :] * 255
+        
+        # create a bounding box around slice
+        points = np.argwhere(mri_mask != 0)
+        points = np.fliplr(points) # store them in x,y coordinates instead of row,col indices
+        y, x, h, w = cv2.boundingRect(points) # create a rectangle around those points
+        
+        
+
+        imMRI[slice, :, :] = imMRI[slice, :, :] / int(np.max(imMRI[slice, :, :]) / 255)
+   
+        if h>w:
+            y_offset = int(h*0.15)
+            x_offset = int((h - w + 2*y_offset)/2)
+        else:
+            y_offset = int(h*0.2)
+            x_offset = int((h - w + 2*y_offset)/2)
+        
+        coord['x'].append(x)
+        coord['y'].append(y)
+        coord['h'].append(h)
+        coord['w'].append(w)
+        coord['slice'].append(slice) 
+        coord['x_offset'].append(x_offset)
+        coord['y_offset'].append(y_offset)  
+        
+        crop = mri[x - x_offset:x+w+x_offset, y - y_offset:y+h +y_offset]
+        
+        h = h + 2*y_offset
+        w = w + 2*x_offset
+        
+        crop = crop*25.5/(np.max(crop)/10)
+        
+        # upsample slice to approx 500 px in width
+        ups = 1; 
+        upsHeight = int(h*ups)
+        upsWidth = int(w*ups)
+        
+        upsMri = cv2.resize(crop.astype('float32'), (upsHeight,  upsWidth), interpolation=cv2.INTER_CUBIC)
+        upsMask = (upsMri > 0).astype(np.uint8)
+        preprocessed_mri_slices.append(upsMri)
+        preprocessed_mri_masks.append(upsMask)
+
+    coord = OrderedDict(coord)
+    
+    return coord, preprocessed_mri_slices, preprocessed_mri_masks
+    
 
 #preprocess mri mha files to slices here
 def preprocess_mri(fixed_img_mha, fixed_seg, pre_process_fixed_dest, coord, case):     

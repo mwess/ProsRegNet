@@ -22,7 +22,7 @@ class GeometricTnf(object):
     ( can be used with no transformation to perform bilinear resizing )        
     
     """
-    def __init__(self, geometric_model='affine', out_h=240, out_w=240, use_cuda=True):
+    def __init__(self, geometric_model: str = 'affine', out_h: int = 240, out_w: int = 240, use_cuda: bool = True):
         self.out_h = out_h
         self.out_w = out_w
         self.use_cuda = use_cuda
@@ -34,7 +34,7 @@ class GeometricTnf(object):
         if use_cuda:
             self.theta_identity = self.theta_identity.cuda()
 
-    def __call__(self, image_batch, theta_batch=None, padding_factor=0.0, crop_factor=1.0):
+    def __call__(self, image_batch, theta_batch=None, padding_factor=0.0, crop_factor=1.0, interpolation_mode='bilinear'):
         b, c, h, w = image_batch.size()
         if theta_batch is None:
             theta_batch = self.theta_identity
@@ -42,18 +42,9 @@ class GeometricTnf(object):
             theta_batch = Variable(theta_batch,requires_grad=False)        
             
         sampling_grid = self.gridGen(theta_batch)
-
-        # rescale grid according to crop_factor and padding_factor
-    #    sampling_grid.data = sampling_grid.data*padding_factor*crop_factor
         sampling_grid.data = sampling_grid.data*crop_factor/(1+2*padding_factor)
+        warped_image_batch = F.grid_sample(image_batch, sampling_grid,padding_mode='border', mode=interpolation_mode)
 
-      #  print("original image batch size:")
-       # print(image_batch.shape)
-        # sample transformed image
-        warped_image_batch = F.grid_sample(image_batch, sampling_grid,padding_mode='border')
-       # print("warped image 88888888888:")
-       # print(warped_image_batch.shape)
-       # print(sampling_grid.shape)
 
         return warped_image_batch
     

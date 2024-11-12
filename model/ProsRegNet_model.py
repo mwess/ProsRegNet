@@ -109,11 +109,12 @@ class FeatureRegression(nn.Module):
     def forward(self, x):
     
         x = self.conv(x)
-        x = x.view(x.size(0), -1)
+        x = x.reshape(x.size(0), -1)
         x = self.linear(x)
         return x
 
 class ProsRegNet(nn.Module):
+
     def __init__(self, geometric_model='affine', normalize_features=True, normalize_matches=True, batch_normalization=True, use_cuda=True, feature_extraction_cnn='resnet101'):
         super(ProsRegNet, self).__init__()
         self.use_cuda = use_cuda
@@ -148,10 +149,12 @@ class ProsRegNet(nn.Module):
         if theta.shape[1] == 6:
             temp = torch.tensor([1.0,0,0,0,1.0,0])
             adjust = temp.repeat(theta.shape[0],1)
-            adjust = adjust.cuda()
+            if self.use_cuda:
+                adjust = adjust.cuda()
             theta = 0.1*theta + adjust
             theta = theta.reshape(theta.size()[0],2,3)
-            theta = theta.cuda()
+            if self.use_cuda:
+                theta = theta.cuda()
             
         if theta.shape[1] == 72:
             temp = torch.tensor([-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,
@@ -167,9 +170,11 @@ class ProsRegNet(nn.Module):
                                  -1.0,-0.6,-0.2,0.2,0.6,1.0,
                                  -1.0,-0.6,-0.2,0.2,0.6,1.0])
             adjust = temp.repeat(theta.shape[0],1)
-            adjust = adjust.cuda()
+            if self.use_cuda:
+                adjust = adjust.cuda()
             theta = 0.1*theta + adjust
-            theta = theta.cuda()
+            if self.use_cuda:
+                theta = theta.cuda()
         
         return theta
     
