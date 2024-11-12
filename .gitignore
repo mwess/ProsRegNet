@@ -37,3 +37,4 @@ examples/notebooks/test_data
 examples/notebooks/output_directory
 
 model_data/
+secret_model_data
