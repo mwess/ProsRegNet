@@ -122,7 +122,7 @@ def  load_models(feature_extraction_cnn,
     return model_cache
 
 # run the cnn on our images and return 3D images
-def runCnn(model_cache, source_image_path, target_image_path, region01, region00, region10, region09):
+def runCnn2(model_cache, source_image_path, target_image_path, region01, region00, region10, region09):
     model_aff, model_tps, do_aff, do_tps, use_cuda = model_cache
     
     tpsTnf = GeometricTnf(geometric_model='tps', use_cuda=use_cuda)
@@ -252,7 +252,7 @@ def runCnn(model_cache, source_image_path, target_image_path, region01, region00
     return warped_image_aff_tps_np_high_res, warped_region01_aff_tps_np_high_res, warped_region00_aff_tps_np_high_res, warped_region10_aff_tps_np_high_res, warped_region09_aff_tps_np_high_res
 #    return warped_image_aff_np_high_res, warped_region01_aff_np_high_res, warped_region00_aff_np_high_res, warped_region10_aff_np_high_res, warped_region09_aff_np_high_res
 
-def runCnn2(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool], 
+def runCnn(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool], 
             source_image: np.ndarray, 
             target_image: np.ndarray, 
             source_mask: np.ndarray | None = None,
@@ -309,6 +309,9 @@ def runCnn2(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool],
         model_tps.eval()
 
     # Evaluate models
+    thetas = {}
+    thetas['affine'] = []
+    thetas['tps'] = []
     if do_aff:
         #theta_aff=model_aff(batch)
         #### affine registration using the masks only
@@ -316,6 +319,7 @@ def runCnn2(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool],
             theta_aff=model_aff(batch_mask)
         else:
             theta_aff = model_aff(batch)
+        thetas['affine'].append(theta_aff)
         warped_image_aff_high_res = affTnf_high_res(batch_high_res['source_image'], theta_aff.view(-1,2,3))
         warped_image_aff = affTnf(batch['source_image'], theta_aff.view(-1,2,3))
         
@@ -324,11 +328,13 @@ def runCnn2(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool],
         theta_aff=model_aff({'source_image': warped_mask_aff, 'target_image': target_image_mask_var})
         warped_image_aff_high_res = affTnf_high_res(warped_image_aff_high_res, theta_aff.view(-1,2,3))
         warped_image_aff = affTnf(warped_image_aff, theta_aff.view(-1,2,3))
+        thetas['affine'].append(theta_aff)
         ###>>>>>>>>>>>> do affine registration one more time<<<<<<<<<<<<
 
     if do_aff and do_tps:
         theta_aff_tps=model_tps({'source_image': warped_image_aff, 'target_image': batch['target_image']})   
         warped_image_aff_tps_high_res = tpsTnf_high_res(warped_image_aff_high_res,theta_aff_tps)
+        thetas['tps'].append(theta_aff_tps)
 
     # Un-normalize images and convert to numpy
     if do_aff:
@@ -341,7 +347,7 @@ def runCnn2(model_cache: tuple[ProsRegNet, ProsRegNet, bool, bool, bool],
     warped_image_aff_tps_np_high_res[warped_image_aff_tps_np_high_res < 0] = 0    
     
     theta = theta_aff_tps if do_tps else theta_aff
-    return warped_image_aff_tps_np_high_res, theta
+    return warped_image_aff_tps_np_high_res, thetas
 
 
 

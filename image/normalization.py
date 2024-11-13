@@ -32,7 +32,6 @@ class NormalizeImageDict(object):
     
     
 def normalize_image(image, forward=True, mean=[0.485, 0.456, 0.406],std=[0.229, 0.224, 0.225]):
-#def normalize_image(image, forward=True, mean=[0.5, 0.5, 0.5],std=[0.25, 0.25, 0.25]):
         im_size = image.size()
         mean=torch.FloatTensor(mean).unsqueeze(1).unsqueeze(2)
         std=torch.FloatTensor(std).unsqueeze(1).unsqueeze(2)
